@@ -17,6 +17,28 @@ has 'mml' => (
 	required => 1,
 );
 
+has 'port' => (
+	is      => 'ro',
+	isa     => 'Int',
+	default => 8080,
+);
+
+has 'cache' => (
+	traits   => ['Getopt'],
+	cmd_flag => 'cache',
+	is       => 'ro',
+	isa      => 'Str',
+	default  => 'file',
+);
+
+has 'cache_dir' => (
+	traits   => ['Getopt'],
+	cmd_flag => 'cache',
+	is       => 'ro',
+	isa      => 'Str',
+	default  => '/tmp/tegola-cache',
+);
+
 has 'db_host' => (
 	traits   => ['Getopt'],
 	cmd_flag => 'db-host',
@@ -56,6 +78,15 @@ has 'db_name' => (
 	isa      => 'Str',
 	required => 1,
 );
+
+has 'db_max_connections' => (
+	traits   => ['Getopt'],
+	cmd_flag => 'db-max-connections',
+	is       => 'ro',
+	isa      => 'Int',
+	default  => 100,
+);
+
 
 my %geometry_type_mapping = (
 	linestring => 'LineString',
@@ -102,24 +133,32 @@ sub run {
 
 	my $config = {
 		webserver => {
-			port => ':8080',
+			port => ':' . $self->port(),
 		},
 		providers => [{
-			name     => 'osm',
-			type     => 'postgis',
-			host     => $self->db_host(),
-			port     => $self->db_port(),
-			database => $self->db_name(),
-			user     => $self->db_user(),
-			password => $self->db_password(),
-			srid     => 3857,
-			layers   => \@layers,
+			name            => 'osm',
+			type            => 'postgis',
+			host            => $self->db_host(),
+			port            => $self->db_port(),
+			database        => $self->db_name(),
+			user            => $self->db_user(),
+			password        => $self->db_password(),
+			max_connections => $self->db_max_connections(),
+			srid            => 3857,
+			layers          => \@layers,
 		}],
 		maps => [{
 			name   => 'osm',
 			layers => \@map_layers,
 		}],
 	};
+
+	if ($self->cache() ne 'none') {
+		$config->{cache} = {
+			type     => $self->cache(),
+			basepath => $self->cache_dir(),
+		}
+	}
 
 	my $config_str = TOML::Dumper->new->dump($config);
 	$config_str =~ s{\\/}{/}g;
