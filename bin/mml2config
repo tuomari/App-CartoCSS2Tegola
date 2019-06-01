@@ -1,0 +1,130 @@
+#!/usr/bin/env perl
+
+use 5.010001;
+use strict;
+use warnings;
+
+use Moose;
+with 'MooseX::Getopt';
+
+use YAML::XS;
+use TOML::Dumper;
+use SQL::Parser;
+
+has 'mml' => (
+	is       => 'ro',
+	isa      => 'Str',
+	required => 1,
+);
+
+has 'db_host' => (
+	traits   => ['Getopt'],
+	cmd_flag => 'db-host',
+	is       => 'ro',
+	isa      => 'Str',
+	default  => 'localhost',
+);
+
+has 'db_port' => (
+	traits   => ['Getopt'],
+	cmd_flag => 'db-port',
+	is       => 'ro',
+	isa      => 'Str',
+	default  => 5432,
+);
+
+has 'db_user' => (
+	traits   => ['Getopt'],
+	cmd_flag => 'db-user',
+	is       => 'ro',
+	isa      => 'Str',
+	required => 1,
+);
+
+has 'db_password' => (
+	traits   => ['Getopt'],
+	cmd_flag => 'db-password',
+	is       => 'ro',
+	isa      => 'Str',
+	required => 1,
+);
+
+has 'db_name' => (
+	traits   => ['Getopt'],
+	cmd_flag => 'db-name',
+	is       => 'ro',
+	isa      => 'Str',
+	required => 1,
+);
+
+my %geometry_type_mapping = (
+	linestring => 'LineString',
+	point      => 'Point',
+	polygon    => 'Polygon',
+);
+
+sub run {
+	my ($self) = @_;
+
+	my $mml_data = YAML::XS::LoadFile($self->mml());
+	my @carto_layers = @{$mml_data->{Layer}};
+	my @postgis_layers = grep {
+		defined $_->{Datasource}->{'<<'}->{type}
+			&& $_->{Datasource}->{'<<'}->{type} eq 'postgis'
+	} @carto_layers;
+	my @layers;
+	my @map_layers;
+	my $sql_parser = SQL::Parser->new();
+
+	for my $layer (@postgis_layers) {
+		my $sql = $layer->{Datasource}->{table};
+		$sql =~ s{\\d}{\\\\d}g;
+		$sql =~ s{\\(\d+)}{\\\\$1}g;
+		$sql =~ s{\\\.}{\\\\.}g;
+		push @layers, {
+			name               => $layer->{id},
+			geometry_fieldname => 'geom',
+			defined $layer->{geometry}
+				? (geometry_type => $geometry_type_mapping{$layer->{geometry}})
+				: (),
+			sql                => 'SELECT ST_AsBinary(way) AS geom, * FROM ' . $sql . ' WHERE way && !BBOX!',
+		};
+		push @map_layers, {
+			provider_layer => 'osm.' . $layer->{id},
+			$layer->{properties}->{minzoom}
+				? (min_zoom => $layer->{properties}->{minzoom})
+				: (),
+			$layer->{properties}->{maxzoom}
+				? (max_zoom => $layer->{properties}->{maxzoom})
+				: (),
+		};
+	}
+
+	my $config = {
+		webserver => {
+			port => ':8080',
+		},
+		providers => [{
+			name     => 'osm',
+			type     => 'postgis',
+			host     => $self->db_host(),
+			port     => $self->db_port(),
+			database => $self->db_name(),
+			user     => $self->db_user(),
+			password => $self->db_password(),
+			srid     => 3857,
+			layers   => \@layers,
+		}],
+		maps => [{
+			name   => 'osm',
+			layers => \@map_layers,
+		}],
+	};
+
+	my $config_str = TOML::Dumper->new->dump($config);
+	$config_str =~ s{\\/}{/}g;
+	say $config_str;
+}
+
+
+__PACKAGE__->new_with_options()->run() unless caller();
