@@ -10,6 +10,7 @@ with 'MooseX::Getopt';
 use YAML::XS;
 use TOML::Dumper;
 use SQL::Parser;
+use DBI;
 
 has 'mml' => (
 	is       => 'ro',
@@ -87,6 +88,37 @@ has 'db_max_connections' => (
 	default  => 100,
 );
 
+has 'dbi_str' => (
+	traits   => ['Getopt'],
+	cmd_flag => 'dbi-str',
+	is       => 'ro',
+	isa      => 'Str',
+);
+
+has 'dbh' => (
+	traits  => ['NoGetopt'],
+	is      => 'ro',
+	isa     => 'DBI::db',
+	lazy    => 1,
+	default => sub {
+		my ($self) = @_;
+		my @connect_param = $self->dbi_str()
+			? ($self->dbi_str())
+			: (
+				'dbi:Pg:dbname=' . $self->db_name()
+					. ';host=' . $self->db_host()
+					. ';port=' . $self->db_port()
+					. ';',
+				$self->db_user(),
+				$self->db_password()
+			)
+		;
+		my $dbh = DBI->connect(@connect_param);
+		$dbh->{pg_placeholder_dollaronly} = 1;  # ? is operator for hstore
+		return $dbh;
+	},
+);
+
 
 my %geometry_type_mapping = (
 	linestring => 'LineString',
@@ -112,13 +144,21 @@ sub run {
 		$sql =~ s{\\d}{\\\\d}g;
 		$sql =~ s{\\(\d+)}{\\\\$1}g;
 		$sql =~ s{\\\.}{\\\\.}g;
+		my @columns = map {
+			'"' . $_ . '"'
+		} grep {
+			$_ ne 'way'
+		} $self->get_columns($sql);
+		unshift @columns, 'ST_AsBinary(way) AS geom';
+		my $columns = join(', ',  @columns);
+
 		push @layers, {
 			name               => $layer->{id},
 			geometry_fieldname => 'geom',
 			defined $layer->{geometry}
 				? (geometry_type => $geometry_type_mapping{$layer->{geometry}})
 				: (),
-			sql                => 'SELECT ST_AsBinary(way) AS geom, * FROM ' . $sql . ' WHERE way && !BBOX!',
+			sql                => 'SELECT ' . $columns . ' FROM ' . $sql . ' WHERE way && !BBOX!',
 		};
 		push @map_layers, {
 			provider_layer => 'osm.' . $layer->{id},
@@ -163,6 +203,23 @@ sub run {
 	my $config_str = TOML::Dumper->new->dump($config);
 	$config_str =~ s{\\/}{/}g;
 	say $config_str;
+}
+
+
+sub get_columns {
+	my ($self, $sql) = @_;
+
+	$sql =~ s{!scale_denominator!}{1}g;
+	$sql =~ s{!bbox!}{ST_MakeEnvelope(-180.0, -85.06,  180.0, 85.06 ,4326)}gi;
+	$sql =~ s{!pixel_(?:width|height)!}{42}g;
+	$sql = 'SELECT * FROM ' . $sql . ' LIMIT 1';
+	my $sth = $self->dbh()->prepare($sql);
+	my $rv = $sth->execute();
+	unless ($rv) {
+		die("Failed to execute $sql");
+	}
+
+	return @{$sth->{NAME}};
 }
 
 
