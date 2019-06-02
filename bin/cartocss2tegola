@@ -1,5 +1,9 @@
 #!/usr/bin/env perl
 
+# PODNAME: cartocss2tegola
+
+# ABSTRACT: Convert CartoCSS project file to tegola configuration
+
 use 5.010001;
 use strict;
 use warnings;
@@ -13,86 +17,97 @@ use SQL::Parser;
 use DBI;
 
 has 'mml' => (
-	is       => 'ro',
-	isa      => 'Str',
-	required => 1,
+	is            => 'ro',
+	isa           => 'Str',
+	required      => 1,
+	documentation => 'Path to CartoCSS project.mml file.',
 );
 
 has 'port' => (
-	is      => 'ro',
-	isa     => 'Int',
-	default => 8080,
+	is            => 'ro',
+	isa           => 'Int',
+	default       => 8080,
+	documentation => 'Port where Tegola should run.',
 );
 
 has 'cache' => (
-	traits   => ['Getopt'],
-	cmd_flag => 'cache',
-	is       => 'ro',
-	isa      => 'Str',
-	default  => 'file',
+	traits        => ['Getopt'],
+	cmd_flag      => 'cache',
+	is            => 'ro',
+	isa           => 'Str',
+	default       => 'file',
+	documentation => 'Type of cache to use. Defaults to "file"',
 );
 
 has 'cache_dir' => (
-	traits   => ['Getopt'],
-	cmd_flag => 'cache',
-	is       => 'ro',
-	isa      => 'Str',
-	default  => '/tmp/tegola-cache',
+	traits        => ['Getopt'],
+	cmd_flag      => 'cache',
+	is            => 'ro',
+	isa           => 'Str',
+	default       => '/tmp/tegola-cache',
+	documentation => 'Cache directory for file cache.',
 );
 
 has 'db_host' => (
-	traits   => ['Getopt'],
-	cmd_flag => 'db-host',
-	is       => 'ro',
-	isa      => 'Str',
-	default  => 'localhost',
+	traits        => ['Getopt'],
+	cmd_flag      => 'db-host',
+	is            => 'ro',
+	isa           => 'Str',
+	default       => 'localhost',
+	documentation => 'Database host to connect to.',
 );
 
 has 'db_port' => (
-	traits   => ['Getopt'],
-	cmd_flag => 'db-port',
-	is       => 'ro',
-	isa      => 'Str',
-	default  => 5432,
+	traits        => ['Getopt'],
+	cmd_flag      => 'db-port',
+	is            => 'ro',
+	isa           => 'Str',
+	default       => 5432,
+	documentation => 'Database port to connect to.',
 );
 
 has 'db_user' => (
-	traits   => ['Getopt'],
-	cmd_flag => 'db-user',
-	is       => 'ro',
-	isa      => 'Str',
-	required => 1,
+	traits        => ['Getopt'],
+	cmd_flag      => 'db-user',
+	is            => 'ro',
+	isa           => 'Str',
+	required      => 1,
+	documentation => 'Database user.',
 );
 
 has 'db_password' => (
-	traits   => ['Getopt'],
-	cmd_flag => 'db-password',
-	is       => 'ro',
-	isa      => 'Str',
-	required => 1,
+	traits        => ['Getopt'],
+	cmd_flag      => 'db-password',
+	is            => 'ro',
+	isa           => 'Str',
+	required      => 1,
+	documentation => 'Database password.',
 );
 
 has 'db_name' => (
-	traits   => ['Getopt'],
-	cmd_flag => 'db-name',
-	is       => 'ro',
-	isa      => 'Str',
-	required => 1,
+	traits        => ['Getopt'],
+	cmd_flag      => 'db-name',
+	is            => 'ro',
+	isa           => 'Str',
+	required      => 1,
+	documentation => 'Database name.',
 );
 
 has 'db_max_connections' => (
-	traits   => ['Getopt'],
-	cmd_flag => 'db-max-connections',
-	is       => 'ro',
-	isa      => 'Int',
-	default  => 100,
+	traits        => ['Getopt'],
+	cmd_flag      => 'db-max-connections',
+	is            => 'ro',
+	isa           => 'Int',
+	default       => 100,
+	documentation => 'Maximum number of database connections to establish.',
 );
 
 has 'dbi_str' => (
-	traits   => ['Getopt'],
-	cmd_flag => 'dbi-str',
-	is       => 'ro',
-	isa      => 'Str',
+	traits        => ['Getopt'],
+	cmd_flag      => 'dbi-str',
+	is            => 'ro',
+	isa           => 'Str',
+	documentation => 'DBI connection string to determine columns, will be built fromm connection parameters if not given.',
 );
 
 has 'dbh' => (
@@ -210,9 +225,9 @@ sub get_columns {
 	my ($self, $sql) = @_;
 
 	$sql =~ s{!scale_denominator!}{1}g;
-	$sql =~ s{!bbox!}{ST_MakeEnvelope(-180.0, -85.06,  180.0, 85.06 ,4326)}gi;
+	$sql =~ s{!bbox!}{ST_MakeEnvelope(-180.0, -85.06, 180.0, 85.06, 4326)}gi;
 	$sql =~ s{!pixel_(?:width|height)!}{42}g;
-	$sql = 'SELECT * FROM ' . $sql . ' LIMIT 1';
+	$sql = 'SELECT * FROM ' . $sql . ' LIMIT 0';
 	my $sth = $self->dbh()->prepare($sql);
 	my $rv = $sth->execute();
 	unless ($rv) {
