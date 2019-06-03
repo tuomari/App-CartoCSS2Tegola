@@ -2,7 +2,6 @@ requires "Carp" => "0";
 requires "DBI" => "0";
 requires "Moose" => "0";
 requires "MooseX::Getopt" => "0";
-requires "SQL::Parser" => "0";
 requires "TOML::Dumper" => "0";
 requires "YAML::XS" => "0";
 requires "perl" => "5.010001";

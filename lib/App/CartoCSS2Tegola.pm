@@ -12,7 +12,6 @@ with 'MooseX::Getopt';
 
 use YAML::XS;
 use TOML::Dumper;
-use SQL::Parser;
 use DBI;
 
 
@@ -211,7 +210,6 @@ sub run {
 	} @carto_layers;
 	my @layers;
 	my @map_layers;
-	my $sql_parser = SQL::Parser->new();
 
 	for my $layer (@postgis_layers) {
 		my $sql = $layer->{Datasource}->{table};
