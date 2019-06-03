@@ -15,6 +15,55 @@ use TOML::Dumper;
 use SQL::Parser;
 use DBI;
 
+
+=head1 SYNOPSIS
+
+	use App::CartoCSS2Tegola;
+
+	App::CartoCSS2Tegola->new_with_options()->run() unless caller();
+
+=head1 DESCRIPTION
+
+App::CartoCSS2Tegola is intended to convert a CartoCSS project file to a
+configuration file for Tegola. It configures a map called C<osm> that contains
+all PostGIS layers from the CartoCSS configuration, under the same name, using
+the same SQL query and thus data.
+
+=head1 USAGE
+
+In order to create the configuration file and to actually render the vector
+tiles with Tegola, you'll need an C<osm2pgsql>-based rendering database that was
+setup the same way as it would be required for the CartoCSS style that should be
+converted, i.e. for the OpenStreetMap Carto style, you'll have to follow the
+instructions in their
+L<INSTALL.md|https://github.com/gravitystorm/openstreetmap-carto/blob/master/INSTALL.md>
+documentation. The configuration can then be created as follows:
+
+	cartocss2tegola \
+		--db-user gis \
+		--db-password gis \
+		--db-name gis \
+		--mml ../openstreetmap-carto/project.mml > tegola.config
+
+You might want to pass other parameters as well, see C<cartocss2tegola --help>
+for information about the available parameters.
+
+Once the configuration has been built, C<tegola> can be started:
+
+	tegola serve --config=path/to/tegola.config
+
+By default, it will listen on port 8080. The capabilities can be requested at
+L<http://localhost:8080/capabilities/osm.json>, this JSON data will also contain
+URLs of the different layers if needed and the URL of the vector tiles that
+contain all layers. The vector tiles can now be rendered with Mapbox GL, Tangram,
+OpenLayers, etc. using a style which supports the layers and data in the
+generated vector tiles.
+
+=head1 METHODS
+
+=cut
+
+
 has 'mml' => (
 	is            => 'ro',
 	isa           => 'Str',
@@ -270,6 +319,28 @@ sub get_columns {
 
 	return @{$sth->{NAME}};
 }
+
+
+=head1 SEE ALSO
+
+=over
+
+=item *
+
+L<https://tegola.io/> - Tegola, an open source vector tile server written in Go.
+
+=item *
+
+L<https://github.com/mapbox/carto> - CartoCSS, fast CSS-like map stylesheets.
+
+=item *
+
+L<https://github.com/gravitystorm/openstreetmap-carto> - OpenStreetMap Carto, a
+general-purpose OpenStreetMap mapnik style, in CartoCSS.
+
+=back
+
+=cut
 
 
 __PACKAGE__->meta()->make_immutable();
