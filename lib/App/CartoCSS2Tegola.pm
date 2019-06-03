@@ -42,7 +42,7 @@ documentation. The configuration can then be created as follows:
 		--db-user gis \
 		--db-password gis \
 		--db-name gis \
-		--mml ../openstreetmap-carto/project.mml > tegola.config
+		--mml ../openstreetmap-carto/project.mml > openstreetmap-carto.toml
 
 You might want to pass other parameters as well, see C<cartocss2tegola --help>
 for information about the available parameters.
