@@ -70,6 +70,14 @@ has 'mml' => (
 	documentation => 'Path to CartoCSS project.mml file.',
 );
 
+has 'max_zoom' => (
+	traits        => ['Getopt'],
+	cmd_flag      => 'max-zoom',
+	is            => 'ro',
+	isa           => 'Int',
+	documentation => 'Maximum zoom level for map layers. Overrides the values from the CartoCSS project file.',
+);
+
 has 'port' => (
 	is            => 'ro',
 	isa           => 'Int',
@@ -232,13 +240,23 @@ sub run {
 				: (),
 			sql                => 'SELECT ' . $columns . ' FROM ' . $sql . ' WHERE way && !BBOX!',
 		};
+		my $min_zoom = $layer->{properties}->{minzoom}
+			? defined $self->max_zoom() && $self->max_zoom() < $layer->{properties}->{minzoom}
+				? $self->max_zoom()
+				: $layer->{properties}->{minzoom}
+			: $layer->{properties}->{minzoom};
+		my $max_zoom = $layer->{properties}->{maxzoom}
+			? defined $self->max_zoom() && $self->max_zoom() < $layer->{properties}->{maxzoom}
+				? $self->max_zoom()
+				: $layer->{properties}->{maxzoom}
+			: $self->max_zoom();
 		push @map_layers, {
 			provider_layer => 'osm.' . $layer->{id},
-			$layer->{properties}->{minzoom}
-				? (min_zoom => $layer->{properties}->{minzoom})
+			defined $min_zoom
+				? (min_zoom => $min_zoom)
 				: (),
-			$layer->{properties}->{maxzoom}
-				? (max_zoom => $layer->{properties}->{maxzoom})
+			defined $max_zoom
+				? (max_zoom => $max_zoom)
 				: (),
 		};
 	}
