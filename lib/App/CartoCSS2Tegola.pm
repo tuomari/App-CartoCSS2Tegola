@@ -13,6 +13,7 @@ with 'MooseX::Getopt';
 use YAML::XS;
 use TOML::Dumper;
 use DBI;
+use JSON;
 
 
 =head1 SYNOPSIS
@@ -165,6 +166,15 @@ has 'dbi_str' => (
 	documentation => 'DBI connection string to determine columns, will be built fromm connection parameters if not given.',
 );
 
+has 'layer_info' => (
+	traits        => ['Getopt'],
+	cmd_flag      => 'layer-info',
+	is            => 'ro',
+	isa           => 'Bool',
+	default       => 0,
+	documentation => 'Instead of printing a Tegola configuration, print JSON with some layer information.',
+);
+
 has 'dbh' => (
 	traits  => ['NoGetopt'],
 	is      => 'ro',
@@ -218,19 +228,21 @@ sub run {
 	} @carto_layers;
 	my @layers;
 	my @map_layers;
+	my @layer_info;
 
 	for my $layer (@postgis_layers) {
 		my $sql = $layer->{Datasource}->{table};
 		$sql =~ s{\\d}{\\\\d}gx;
 		$sql =~ s{\\(\d+)}{\\\\$1}gx;
 		$sql =~ s{\\\.}{\\\\.}gx;
-		my @columns = map {
-			'"' . $_ . '"'
-		} grep {
+		my @columns = grep {
 			$_ ne 'way'
 		} $self->get_columns($sql);
-		unshift @columns, 'ST_AsBinary(way) AS geom';
-		my $columns = join(', ',  @columns);
+		my @quoted_columns = map {
+			'"' . $_ . '"'
+		} @columns;
+		unshift @quoted_columns, 'ST_AsBinary(way) AS geom';
+		my $columns = join(', ',  @quoted_columns);
 
 		push @layers, {
 			name               => $layer->{id},
@@ -239,6 +251,10 @@ sub run {
 				? (geometry_type => $geometry_type_mapping{$layer->{geometry}})
 				: (),
 			sql                => 'SELECT ' . $columns . ' FROM ' . $sql . ' WHERE way && !BBOX!',
+		};
+		push @layer_info, {
+			name   => $layer->{id},
+			fields => [ sort grep { $_ ne 'way_pixels' } @columns ],
 		};
 		my $min_zoom = $layer->{properties}->{minzoom}
 			? defined $self->max_zoom() && $self->max_zoom() < $layer->{properties}->{minzoom}
@@ -290,9 +306,14 @@ sub run {
 		}
 	}
 
-	my $config_str = TOML::Dumper->new->dump($config);
-	$config_str =~ s{\\/}{/}gx;
-	say $config_str;
+	if ($self->layer_info()) {
+		say JSON->new()->utf8()->pretty()->canonical()->encode(\@layer_info);
+	}
+	else {
+		my $config_str = TOML::Dumper->new->dump($config);
+		$config_str =~ s{\\/}{/}gx;
+		say $config_str;
+	}
 
 	return;
 }
